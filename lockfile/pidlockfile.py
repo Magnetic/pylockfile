@@ -22,7 +22,7 @@ import time
 from . import (LockBase, AlreadyLocked, LockFailed, NotLocked, NotMyLock,
                LockTimeout)
 
-
+
 class PIDLockFile(LockBase):
     """ Lockfile implemented as a Unix PID file.
 
@@ -74,6 +74,13 @@ class PIDLockFile(LockBase):
         end_time = time.time()
         if timeout is not None and timeout > 0:
             end_time += timeout
+
+        # if the file is locked check to see
+        # if the process is still running, if not
+        # then try to break the lock
+        pid = self.read_pid()
+        if pid and not pid_is_running(pid):
+            self.break_lock()
 
         while True:
             try:
@@ -132,10 +139,10 @@ def read_pid_from_pidfile(pidfile_path):
         pass
     else:
         # According to the FHS 2.3 section on PID files in /var/run:
-        # 
+        #
         #   The file must consist of the process identifier in
         #   ASCII-encoded decimal, followed by a newline character.
-        # 
+        #
         #   Programs that read PID files should be somewhat flexible
         #   in what they accept; i.e., they should ignore extra
         #   whitespace, leading zeroes, absence of the trailing
@@ -191,3 +198,17 @@ def remove_existing_pidfile(pidfile_path):
             pass
         else:
             raise
+
+
+def pid_is_running(pid):
+    """Function to test if a specific process is
+    currently running or not
+    """
+    try:
+        # 0 will not send any signal to
+        # the other process
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    else:
+        return True
